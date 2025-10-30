@@ -77,6 +77,3 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
     except WebSocketDisconnect:
         print("Client disconnected")
 
-# For testing: run uvicorn app:app --reload
-# Test websocket: wscat -c ws://localhost:8000/ws/user1
-# Send messages like "نظافت منزل میخوام" or "وضعیت سفارش من چیه؟"
