@@ -182,7 +182,6 @@ MOCK_ORDERS = {
 
 app = FastAPI()
 
-# Mount static files if needed (but minimal UI doesn't require)
 if os.path.exists("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
