@@ -10,7 +10,7 @@ import uuid
 from typing import List, Dict
 from sentence_transformers import SentenceTransformer, util
 import asyncio
-import os  # Added for static check
+import os
 
 # Load services data
 SERVICES_DATA = {
@@ -142,11 +142,29 @@ CITY_MAP = {
     "3797": "general"
 }
 
+CITY_NAME_TO_ID = {v.lower(): k for k, v in CITY_MAP.items()}
+
+PERSIAN_CITIES = {
+    "tabriz": "تبریز",
+    "isfahan": "اصفهان",
+    "karaj": "کرج",
+    "tehran": "تهران",
+    "mashhad": "مشهد",
+    "ahvaz": "اهواز",
+    "qom": "قم",
+    "kerman": "کرمان",
+    "rasht": "رشت",
+    "shiraz": "شیراز",
+    "bandar-abbas": "بندرعباس",
+    "amol": "آمل",
+    "general": "عمومی"
+}
+
 model = SentenceTransformer(
     'xmanii/maux-gte-persian',
     trust_remote_code=True
 )
-# Mock pricing rules
+
 PRICING_MOCK = {
     "lorry": "قیمت اسباب‌کشی بر اساس مسافت و حجم بار محاسبه می‌شود. حداقل 500,000 تومان.",
     "special-cleaning-other-cities": "نظافت ویژه: ساعتی 100,000 تومان.",
@@ -251,15 +269,12 @@ async def get_ui():
         </style>
     </head>
     <body>
-        <h1 style="
-    text-align: center;
-    ">دستیار هوشمند آچاره</h1>
+        <h1 style="text-align: center;">دستیار هوشمند آچاره</h1>
         <div id="chat"></div>
-        <input type="text" id="input" placeholder="پیام خود را اینجا بنویسید...">
+        <input type="text" id="input" placeholder="نام شهر خود را به انگلیسی وارد کنید (مثل tehran)...">
         <button onclick="sendMessage()">ارسال</button>
 
         <script>
-            // دیباگ: چک کن WebSocket وصل میشه یا نه
             console.log("Connecting to WebSocket...");
             const ws = new WebSocket("ws://" + window.location.host + "/ws");
             const chat = document.getElementById("chat");
@@ -267,7 +282,7 @@ async def get_ui():
 
             ws.onopen = () => {
                 console.log("WebSocket connected!");
-                addMessage("بات: سلام! کد شهر خود را وارد کنید (مثلاً 333 برای تهران).", "bot");
+                addMessage("بات: سلام! نام شهر خود را وارد کنید (مثلاً تهران، تبریز، اصفهان و...).", "bot");
             };
 
             ws.onmessage = (event) => {
@@ -316,7 +331,7 @@ async def websocket_endpoint(websocket: WebSocket):
     convo_id = str(uuid.uuid4())
     state = {"city_id": None, "user_id": "user1"}  # Mock, replace with auth
     
-    await websocket.send_text("سلام! کد شهر خود را وارد کنید (مثلاً 333 برای تهران).")
+    await websocket.send_text("سلام! نام شهر خود را وارد کنید (مثلاً تهران، تبریز، اصفهان و...).")
     
     try:
         while True:
@@ -324,11 +339,24 @@ async def websocket_endpoint(websocket: WebSocket):
             store_conversation(convo_id, user_input, "")  
             
             if state["city_id"] is None:
-                if user_input in SERVICES_DATA:
+                normalized_input = user_input.strip().lower()
+                
+                if normalized_input in CITY_NAME_TO_ID:
+                    state["city_id"] = CITY_NAME_TO_ID[normalized_input]
+                    city_english = CITY_MAP[state["city_id"]]
+                    persian_name = PERSIAN_CITIES.get(city_english, city_english)
+                    response = f"شهر {persian_name} تنظیم شد. حالا نیاز خود را بیان کنید (مثلاً 'نظافت منزل')."
+                
+                elif user_input in SERVICES_DATA:
                     state["city_id"] = user_input
-                    response = "شهر تنظیم شد. نیاز خود را بیان کنید (مثلاً 'نظافت منزل')."
+                    city_english = CITY_MAP.get(user_input, "ناشناخته")
+                    persian_name = PERSIAN_CITIES.get(city_english, city_english)
+                    response = f"شهر با کد {user_input} ({persian_name}) تنظیم شد. نیاز خود را بیان کنید."
+                
                 else:
-                    response = "کد شهر نامعتبر. لطفاً کد معتبر وارد کنید."
+                    available_cities = "تهران، تبریز، اصفهان، کرج، مشهد، اهواز، قم، کرمان، رشت، شیراز، بندرعباس، آمل"
+                    response = f"نام یا کد شهر نامعتبر است. شهرهای موجود: {available_cities}"
+            
             else:
                 if "پیگیری سفارش" in user_input or "وضعیت سفارش" in user_input:
                     response = track_order(state["user_id"])
@@ -343,6 +371,7 @@ async def websocket_endpoint(websocket: WebSocket):
             
             store_conversation(convo_id, user_input, response)  
             await websocket.send_text(response)
+    
     except WebSocketDisconnect:
         pass
     except Exception as e:
