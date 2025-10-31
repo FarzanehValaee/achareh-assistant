@@ -7,7 +7,7 @@ from api_client import *
 
 
 llm = ChatOpenAI(model="gpt-4", 
-                 api_key="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"
+                 api_key="YOUR_API_KEY"
                  )
 
 class AgentState(TypedDict):
